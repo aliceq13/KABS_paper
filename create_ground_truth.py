@@ -271,24 +271,29 @@ class GroundTruthAnnotator:
             cv2.imshow(self.window_name, display_frame)
 
             # Handle keyboard input
-            key = cv2.waitKey(1 if self.playing else 30) & 0xFF
+            # Use waitKeyEx for better arrow key detection
+            key = cv2.waitKeyEx(1 if self.playing else 30)
+
+            # Debug: Print key code (uncomment to see what keys are pressed)
+            if key != -1:
+                print(f"Key pressed: {key}")
 
             if key == ord(' '):  # Space - Add keyframe
                 self.add_keyframe()
 
-            elif key == 83 or key == 3:  # Right arrow - Next frame
+            elif key == 2555904 or key == 83:  # Right arrow - Next frame
                 self.playing = False
                 self.current_frame_idx = min(self.current_frame_idx + 1, self.total_frames - 1)
 
-            elif key == 81 or key == 2:  # Left arrow - Previous frame
+            elif key == 2424832 or key == 81:  # Left arrow - Previous frame
                 self.playing = False
                 self.current_frame_idx = max(self.current_frame_idx - 1, 0)
 
-            elif key == 82 or key == 0:  # Up arrow - Skip forward
+            elif key == 2490368 or key == 82:  # Up arrow - Skip forward 30
                 self.playing = False
                 self.current_frame_idx = min(self.current_frame_idx + 30, self.total_frames - 1)
 
-            elif key == 84 or key == 1:  # Down arrow - Skip backward
+            elif key == 2621440 or key == 84:  # Down arrow - Skip backward 30
                 self.playing = False
                 self.current_frame_idx = max(self.current_frame_idx - 30, 0)
 
