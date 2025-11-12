@@ -478,26 +478,26 @@ def load_models(model_type="yolo", model_path=None, torchreid_model_path=None, u
     
     return detection_model, torchreid_model, device, class_names, dpt_processor, dpt_model, dpt_device
 
-def primary_selection(video_path, detection_model, class_names, frame_skip_interval=1, 
-                     included_classes=None, excluded_classes=None):
+def primary_selection(video_path, detection_model, class_names, frame_skip_interval=1,
+                     included_classes=None, excluded_classes=None, tracker="botsort.yaml"):
     """Primary selection: group frames by object set changes (with frame skipping and class filtering)"""
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened(): raise ValueError("Error opening video file")
-    
+
     frame_idx, prev_track_set, groups, current_group = 0, set(), [], []
     skip_counter = 0
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret: break
-        
+
         # Frame skipping logic
         skip_counter += 1
         if skip_counter < frame_skip_interval:
             frame_idx += 1
             continue
         skip_counter = 0
-        
-        results = detection_model.track(frame, persist=True, verbose=False, tracker="botsort.yaml")
+
+        results = detection_model.track(frame, persist=True, verbose=False, tracker=tracker)
         current_track_set = set(results[0].boxes.id.cpu().numpy()) if results[0].boxes.id is not None else set()
         if current_track_set != prev_track_set:
             if current_group: groups.append(current_group)
@@ -919,7 +919,7 @@ def save_frames_as_images(frames_data, output_folder, prefix="", use_original_id
     print(f"✓ Saved {len(frames_data)} frames.")
 
 def create_video_from_source(video_path, detection_model, class_names, output_path, use_tracking=True,
-                            included_classes=None, excluded_classes=None):
+                            included_classes=None, excluded_classes=None, tracker="botsort.yaml"):
     """원본 비디오를 처리하여 추적 적용/미적용 비디오를 생성하는 함수 (필터링 추가)"""
     cap = cv2.VideoCapture(video_path)
     if not cap.isOpened():
@@ -929,19 +929,19 @@ def create_video_from_source(video_path, detection_model, class_names, output_pa
     width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
     height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
     fps = int(cap.get(cv2.CAP_PROP_FPS))
-    
+
     fourcc = cv2.VideoWriter_fourcc(*'mp4v')
     out = cv2.VideoWriter(output_path, fourcc, fps, (width, height))
 
     print(f"\nCreating video: '{os.path.basename(output_path)}' (Tracking: {use_tracking})...")
-    
+
     while cap.isOpened():
         ret, frame = cap.read()
         if not ret:
             break
-        
+
         if use_tracking:
-            results = detection_model.track(frame, persist=True, verbose=False, tracker="botsort.yaml")
+            results = detection_model.track(frame, persist=True, verbose=False, tracker=tracker)
             if results[0].boxes is not None and results[0].boxes.id is not None:
                 detections = []
                 for i, (b, t) in enumerate(zip(results[0].boxes.xyxy.cpu(), results[0].boxes.id.cpu())):
@@ -1305,6 +1305,7 @@ def main(video_path, output_folder, json_save_mode="both", model_type="yolo", mo
          show_available_classes=True,  # NEW: 클래스 목록 표시 여부
          filter_mode=3,  # NEW: 필터링 모드 (1=블랙리스트, 2=화이트리스트, 3=필터링없음)
          filter_classes=None,  # NEW: 필터링할 클래스 리스트 (문자열 또는 숫자)
+         tracker="botsort.yaml",  # NEW: Tracker configuration
          **kwargs):
     """
     [MODIFIED] 메인 파이프라인 - Depth 추정 + 히스토그램 결합 + Post-Filter 추가 + Frame Skipping + Profile Iterations + Window Size 적용 + 객체 필터링
@@ -1366,12 +1367,12 @@ def main(video_path, output_folder, json_save_mode="both", model_type="yolo", mo
     if create_comparison_videos:
         print("\n" + "="*80 + "\nCREATING COMPARISON VIDEOS\n" + "="*80)
         no_tracking_video_path = os.path.join(video_out_folder, "video_no_tracking.mp4")
-        create_video_from_source(video_path, detection_model, class_names, no_tracking_video_path, 
-                                use_tracking=False, included_classes=included_classes, excluded_classes=excluded_classes)
+        create_video_from_source(video_path, detection_model, class_names, no_tracking_video_path,
+                                use_tracking=False, included_classes=included_classes, excluded_classes=excluded_classes, tracker=tracker)
 
         tracking_video_path = os.path.join(video_out_folder, "video_with_tracking.mp4")
-        create_video_from_source(video_path, detection_model, class_names, tracking_video_path, 
-                                use_tracking=True, included_classes=included_classes, excluded_classes=excluded_classes)
+        create_video_from_source(video_path, detection_model, class_names, tracking_video_path,
+                                use_tracking=True, included_classes=included_classes, excluded_classes=excluded_classes, tracker=tracker)
 
     # 메인 파이프라인
     print("\n" + "="*80 + "\nSTARTING MAIN KEYFRAME EXTRACTION PIPELINE\n" + "="*80)
@@ -1381,10 +1382,11 @@ def main(video_path, output_folder, json_save_mode="both", model_type="yolo", mo
     
     # Step 1: Primary Selection (with frame skipping + filtering)
     print("\nSTEP 1: Primary Selection...")
-    selected_frames = primary_selection(video_path, detection_model, class_names, 
+    selected_frames = primary_selection(video_path, detection_model, class_names,
                                        frame_skip_interval=frame_skip_interval,
                                        included_classes=included_classes,
-                                       excluded_classes=excluded_classes)
+                                       excluded_classes=excluded_classes,
+                                       tracker=tracker)
     print(f"-> Found {len(selected_frames)} initial keyframes.")
     save_frames_as_images(selected_frames, primary_select_folder, prefix="primary_")
     
