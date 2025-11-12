@@ -312,7 +312,7 @@ if __name__ == "__main__":
         output_base_folder=OUTPUT_BASE_FOLDER,
         run_baselines=True,
         run_user_model=True,
-        baseline_intervals=[30, 60],
+        baseline_intervals=[15, 30, 60],
         user_model_configs=USER_MODEL_CONFIGS,
         tolerances=[0, 15, 30]
     )
