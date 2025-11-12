@@ -395,6 +395,8 @@ def save_results(model_frames: Dict[str, List[int]],
         optimization_csv = os.path.join(comparison_folder, "gt_optimization.csv")
         optimization_df.to_csv(optimization_csv, index=False)
         print(f"✓ Saved GT optimization: {optimization_csv}")
+    else:
+        print(f"⚠️ GT optimization CSV not saved (no data generated)")
 
     # Save statistics JSON
     stats = {
@@ -427,8 +429,10 @@ def main():
     parser.add_argument('--gt-folder', type=str,
                        default='Keyframe-extraction/Dataset/Keyframe',
                        help='Ground truth folder')
-    parser.add_argument('--optimize-gt', action='store_true',
-                       help='Perform GT optimization analysis')
+    parser.add_argument('--optimize-gt', action='store_true', default=True,
+                       help='Perform GT optimization analysis (default: True)')
+    parser.add_argument('--no-optimize-gt', dest='optimize_gt', action='store_false',
+                       help='Skip GT optimization analysis')
     parser.add_argument('--tolerance', type=int, default=15,
                        help='Temporal tolerance for F1 calculation (default: 15)')
     parser.add_argument('--top-n', type=int, default=10,
@@ -479,25 +483,59 @@ def main():
     # GT optimization analysis
     optimization_df = pd.DataFrame()
     if args.optimize_gt:
+        print(f"\n{'='*80}")
+        print("GT OPTIMIZATION ANALYSIS")
+        print(f"{'='*80}\n")
+
         try:
             video_name_full, gt_frames = load_current_gt(result_folder, args.gt_folder)
             print(f"✓ Loaded GT: {len(gt_frames)} frames")
 
             if total_frames == 0:
-                print("⚠️ Could not determine total frames, skipping optimization")
+                print("⚠️ Could not determine total frames from evaluation results")
+                print("   Make sure results.csv exists in evaluation folder")
+                print("⚠️ Skipping GT optimization")
             else:
+                print(f"✓ Total frames: {total_frames}")
+                print(f"Analyzing {len(model_frames)} model configurations...")
+
                 optimization_df = analyze_gt_optimization(
                     model_frames, gt_frames, total_frames, args.tolerance
                 )
-                print_optimization_summary(optimization_df, gt_frames, args.top_n)
+
+                if not optimization_df.empty:
+                    print(f"\n✓ Generated {len(optimization_df)} optimization recommendations")
+                    print_optimization_summary(optimization_df, gt_frames, args.top_n)
+                else:
+                    print("⚠️ No optimization recommendations generated")
+
         except Exception as e:
             print(f"✗ Error in GT optimization: {e}")
             import traceback
             traceback.print_exc()
+    else:
+        print(f"\n{'='*80}")
+        print("GT optimization skipped (use --optimize-gt to enable)")
+        print(f"{'='*80}\n")
 
     # Save results
     save_results(model_frames, overlap_analysis, similarity_df,
                 comparison_df, optimization_df, result_folder)
+
+    # Final summary
+    print(f"\n{'='*80}")
+    print("ANALYSIS COMPLETE")
+    print(f"{'='*80}")
+    print(f"Results location: {os.path.join(result_folder, 'frame_comparison')}")
+    print(f"\nGenerated files:")
+    print(f"  • frame_overlap_detail.csv - Detailed frame-by-frame comparison")
+    print(f"  • model_similarity.csv - Jaccard similarity between models")
+    print(f"  • statistics.json - Summary statistics")
+    if not optimization_df.empty:
+        print(f"  • gt_optimization.csv - GT optimization recommendations ✓")
+    else:
+        print(f"  • gt_optimization.csv - NOT GENERATED (see warnings above)")
+    print(f"{'='*80}\n")
 
 
 if __name__ == "__main__":
