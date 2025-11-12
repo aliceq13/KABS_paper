@@ -1435,12 +1435,19 @@ def main(video_path, output_folder, json_save_mode="both", model_type="yolo", mo
     # Step 5: Save final results and logs
     print("\n" + "="*80 + "\nSTEP 5: SAVING FINAL RESULTS AND LOGS\n" + "="*80)
     
-    # 최종 이미지 저장
+    # 최종 이미지 저장 (bounding box 있는 버전과 없는 버전 모두 저장)
     for item in final_selected:
+        # Bounding box 없는 원본 프레임 저장
+        original_img_path = os.path.join(final_folder, f"final_key_frame_{item['frame_idx']}_original.jpg")
+        cv2.imwrite(original_img_path, item['frame'])
+
+        # Bounding box 있는 프레임 저장
         drawn_frame = draw_detections(item['frame'], item['detections'])
-        img_path = os.path.join(final_folder, f"final_key_frame_{item['frame_idx']}.jpg")
-        cv2.imwrite(img_path, drawn_frame)
-        print(f"✓ Saved final keyframe: {os.path.basename(img_path)}")
+        drawn_img_path = os.path.join(final_folder, f"final_key_frame_{item['frame_idx']}_bbox.jpg")
+        cv2.imwrite(drawn_img_path, drawn_frame)
+
+        print(f"✓ Saved final keyframe (original): {os.path.basename(original_img_path)}")
+        print(f"✓ Saved final keyframe (with bbox): {os.path.basename(drawn_img_path)}")
     
     # JSON 저장 - 간결 구조 + 히스토그램/포스트 필터 정보 포함
     save_json_results(
