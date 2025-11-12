@@ -258,8 +258,8 @@ Note: Make sure you created ground truth first using:
     parser.add_argument('--no-model', action='store_true',
                        help='Skip user model')
     parser.add_argument('--baseline-intervals', type=int, nargs='+',
-                       default=[15, 30, 60],
-                       help='Baseline sampling intervals (default: 15 30 60)')
+                       default=[10, 15, 30, 60],
+                       help='Baseline sampling intervals (default: 10 15 30 60)')
     parser.add_argument('--tolerances', type=int, nargs='+',
                        default=[0, 15, 30],
                        help='Temporal tolerances for evaluation (default: 0 15 30)')
