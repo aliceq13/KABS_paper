@@ -87,31 +87,42 @@ def calculate_f1_with_tolerance(predicted: List[int],
             'fn': 0
         }
 
-    # Convert to sets for faster lookup
-    gt_set = set(ground_truth)
-    pred_set = set(predicted)
+    # Convert to sorted lists for consistent ordering
+    # Remove duplicates and sort to ensure reproducibility
+    gt_list = sorted(set(ground_truth))
+    pred_list = sorted(set(predicted))
 
     # True Positives: predicted frames that match with ground truth within tolerance
     tp = 0
     matched_gt = set()
     matched_pred = set()
 
-    for pred_frame in pred_set:
-        # Check if any ground truth frame is within tolerance
-        for gt_frame in gt_set:
+    # Process predicted frames in sorted order for consistent results
+    for pred_frame in pred_list:
+        # Find the closest ground truth frame within tolerance
+        best_gt = None
+        best_distance = float('inf')
+
+        for gt_frame in gt_list:
             if gt_frame in matched_gt:
                 continue  # Already matched
-            if abs(pred_frame - gt_frame) <= tolerance:
-                tp += 1
-                matched_gt.add(gt_frame)
-                matched_pred.add(pred_frame)
-                break
+
+            distance = abs(pred_frame - gt_frame)
+            if distance <= tolerance and distance < best_distance:
+                best_gt = gt_frame
+                best_distance = distance
+
+        # Match with the closest GT frame if found
+        if best_gt is not None:
+            tp += 1
+            matched_gt.add(best_gt)
+            matched_pred.add(pred_frame)
 
     # False Positives: predicted frames that don't match any ground truth
-    fp = len(pred_set) - tp
+    fp = len(pred_list) - tp
 
     # False Negatives: ground truth frames that weren't matched
-    fn = len(gt_set) - tp
+    fn = len(gt_list) - tp
 
     # Calculate metrics
     precision = tp / (tp + fp) if (tp + fp) > 0 else 0.0
