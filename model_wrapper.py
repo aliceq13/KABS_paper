@@ -57,7 +57,10 @@ def run_user_model(video_path: str,
                   model_type: str = "yolo",
                   model_path: str = "yolo11m.pt",
                   tracker: str = "botsort.yaml",
-                  frame_skip_interval: int = 1) -> List[int]:
+                  frame_skip_interval: int = 1,
+                  profile_only: bool = False,
+                  profile_iterations: int = 3,
+                  apply_post_filter: bool = True) -> List[int]:
     """
     Run the user's keyframe extraction model with specified configuration.
 
@@ -68,12 +71,52 @@ def run_user_model(video_path: str,
         model_path: Path to YOLO/RT-DETR model weights
         tracker: Tracker configuration ("botsort.yaml" or "bytetrack.yaml")
         frame_skip_interval: Frame skipping interval (1 = no skip)
+        profile_only: If True, use profile-only mode (no tracking)
+        profile_iterations: Profile tracking iterations (0 = disable)
+        apply_post_filter: Apply post-greedy filtering
 
     Returns:
         List of selected keyframe indices
     """
-    # Import the main function from user's model
-    # This assumes the file is in the same directory
+    # Profile-only mode: Use simplified profile tracking without tracking
+    if profile_only:
+        profile_only_path = "keyframe_extraction_profile_only.py"
+
+        if not os.path.exists(profile_only_path):
+            raise FileNotFoundError(f"Profile-only script not found: {profile_only_path}")
+
+        print(f"\n{'='*80}")
+        print(f"Running PROFILE-ONLY mode (No Tracking)")
+        print(f"  Model: {model_type.upper()}")
+        print(f"  Output: {output_folder}")
+        print(f"{'='*80}\n")
+
+        # Import profile-only module
+        profile_module = load_user_model_module(profile_only_path)
+
+        # Run profile-only extraction
+        try:
+            profile_module.main(
+                video_path=video_path,
+                output_folder=output_folder,
+                model_path=model_path,
+                hist_threshold=0.3,
+                hist_weight_brightness=0.5,
+                hist_weight_saturation=0.5
+            )
+        except Exception as e:
+            print(f"✗ Error running profile-only mode: {e}")
+            raise
+
+        # Extract keyframe indices from JSON
+        json_path = os.path.join(output_folder, "keyframe_summary_unified.json")
+        keyframe_indices = extract_keyframes_from_json(json_path)
+
+        print(f"✓ Extracted {len(keyframe_indices)} keyframes (Profile-Only)")
+
+        return keyframe_indices
+
+    # Standard mode: Use full model with tracking
     user_model_path = "yolo_osnet_4_with_filtering_updated (1).py"
 
     if not os.path.exists(user_model_path):
@@ -104,15 +147,15 @@ def run_user_model(video_path: str,
         # Frame skipping
         "frame_skip_interval": frame_skip_interval,
 
-        # Profile tracking
-        "profile_iterations": 3,
+        # Profile tracking (configurable)
+        "profile_iterations": profile_iterations,
         "window_size": 15,
         "hist_threshold": 0.3,
         "hist_weight_brightness": 0.5,
         "hist_weight_saturation": 0.5,
 
-        # Post-greedy filtering
-        "apply_post_filter": True,
+        # Post-greedy filtering (configurable)
+        "apply_post_filter": apply_post_filter,
         "post_hist_threshold": 0.25,
         "post_window_size": 7,
         "post_profile_iterations": 1,
@@ -193,7 +236,10 @@ def run_multiple_configurations(video_path: str,
                 model_type=config.get('model_type', 'yolo'),
                 model_path=config.get('model_path', 'yolo11m.pt'),
                 tracker=config.get('tracker', 'botsort.yaml'),
-                frame_skip_interval=config.get('frame_skip_interval', 1)
+                frame_skip_interval=config.get('frame_skip_interval', 1),
+                profile_only=config.get('profile_only', False),
+                profile_iterations=config.get('profile_iterations', 3),
+                apply_post_filter=config.get('apply_post_filter', True)
             )
 
             results[config_name] = keyframe_indices
