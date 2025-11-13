@@ -14,7 +14,7 @@ from datetime import datetime
 from typing import List, Dict
 
 # Import our modules
-from baseline_methods import extract_baseline_keyframes
+import cv2
 from model_wrapper import run_multiple_configurations
 from evaluation_metrics import (
     load_ground_truth_keyframes,
@@ -23,6 +23,30 @@ from evaluation_metrics import (
     print_evaluation_summary,
     get_total_frame_count
 )
+
+
+def extract_uniform_keyframes(video_path: str, interval: int) -> List[int]:
+    """
+    Extract keyframes using uniform sampling.
+
+    Args:
+        video_path: Path to video file
+        interval: Sampling interval (extract every N frames)
+
+    Returns:
+        List of keyframe indices
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError(f"Cannot open video: {video_path}")
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+
+    # Sample every 'interval' frames
+    keyframes = list(range(0, total_frames, interval))
+
+    return keyframes
 
 
 # Ablation Study Configurations
@@ -128,9 +152,7 @@ def run_ablation_study(video_path: str,
 
             # Measure runtime
             start_time = time.time()
-            baseline_keyframes = extract_baseline_keyframes(
-                video_path, interval=interval
-            )
+            baseline_keyframes = extract_uniform_keyframes(video_path, interval)
             runtime_seconds = time.time() - start_time
 
             # Evaluate with different tolerances
