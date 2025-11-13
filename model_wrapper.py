@@ -9,7 +9,8 @@ import os
 import sys
 import json
 import cv2
-from typing import List, Dict
+import time
+from typing import List, Dict, Tuple
 import importlib.util
 
 
@@ -60,7 +61,7 @@ def run_user_model(video_path: str,
                   frame_skip_interval: int = 1,
                   profile_only: bool = False,
                   profile_iterations: int = 3,
-                  apply_post_filter: bool = True) -> List[int]:
+                  apply_post_filter: bool = True) -> Tuple[List[int], float]:
     """
     Run the user's keyframe extraction model with specified configuration.
 
@@ -76,7 +77,7 @@ def run_user_model(video_path: str,
         apply_post_filter: Apply post-greedy filtering
 
     Returns:
-        List of selected keyframe indices
+        Tuple of (keyframe_indices, runtime_seconds)
     """
     # Profile-only mode: Use simplified profile tracking without tracking
     if profile_only:
@@ -94,7 +95,8 @@ def run_user_model(video_path: str,
         # Import profile-only module
         profile_module = load_user_model_module(profile_only_path)
 
-        # Run profile-only extraction
+        # Run profile-only extraction with timing
+        start_time = time.time()
         try:
             profile_module.main(
                 video_path=video_path,
@@ -107,14 +109,18 @@ def run_user_model(video_path: str,
         except Exception as e:
             print(f"✗ Error running profile-only mode: {e}")
             raise
+        end_time = time.time()
+
+        runtime_seconds = end_time - start_time
 
         # Extract keyframe indices from JSON
         json_path = os.path.join(output_folder, "keyframe_summary_unified.json")
         keyframe_indices = extract_keyframes_from_json(json_path)
 
         print(f"✓ Extracted {len(keyframe_indices)} keyframes (Profile-Only)")
+        print(f"⏱️  Runtime: {runtime_seconds:.2f} seconds ({runtime_seconds/60:.2f} minutes)")
 
-        return keyframe_indices
+        return keyframe_indices, runtime_seconds
 
     # Standard mode: Use full model with tracking
     user_model_path = "yolo_osnet_4_with_filtering_updated (1).py"
@@ -189,25 +195,30 @@ def run_user_model(video_path: str,
     print(f"  Output: {output_folder}")
     print(f"{'='*80}\n")
 
-    # Run the model
+    # Run the model with timing
+    start_time = time.time()
     try:
         user_module.main(**config)
     except Exception as e:
         print(f"✗ Error running user model: {e}")
         raise
+    end_time = time.time()
+
+    runtime_seconds = end_time - start_time
 
     # Extract keyframe indices from JSON
     json_path = os.path.join(output_folder, "keyframe_summary_unified.json")
     keyframe_indices = extract_keyframes_from_json(json_path)
 
     print(f"✓ Extracted {len(keyframe_indices)} keyframes")
+    print(f"⏱️  Runtime: {runtime_seconds:.2f} seconds ({runtime_seconds/60:.2f} minutes)")
 
-    return keyframe_indices
+    return keyframe_indices, runtime_seconds
 
 
 def run_multiple_configurations(video_path: str,
                                 output_base_folder: str,
-                                configurations: List[Dict]) -> Dict[str, List[int]]:
+                                configurations: List[Dict]) -> Dict[str, Tuple[List[int], float]]:
     """
     Run the user's model with multiple configurations.
 
@@ -217,7 +228,7 @@ def run_multiple_configurations(video_path: str,
         configurations: List of configuration dictionaries
 
     Returns:
-        Dictionary mapping configuration name to keyframe indices
+        Dictionary mapping configuration name to (keyframe_indices, runtime_seconds)
     """
     results = {}
 
@@ -230,7 +241,7 @@ def run_multiple_configurations(video_path: str,
         output_folder = os.path.join(output_base_folder, config_name)
 
         try:
-            keyframe_indices = run_user_model(
+            keyframe_indices, runtime_seconds = run_user_model(
                 video_path=video_path,
                 output_folder=output_folder,
                 model_type=config.get('model_type', 'yolo'),
@@ -242,11 +253,11 @@ def run_multiple_configurations(video_path: str,
                 apply_post_filter=config.get('apply_post_filter', True)
             )
 
-            results[config_name] = keyframe_indices
+            results[config_name] = (keyframe_indices, runtime_seconds)
 
         except Exception as e:
             print(f"✗ Configuration '{config_name}' failed: {e}")
-            results[config_name] = []
+            results[config_name] = ([], 0.0)
 
     return results
 
