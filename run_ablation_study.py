@@ -141,7 +141,7 @@ def run_ablation_study(video_path: str,
     # ====================================================================
     # BASELINE METHODS
     # ====================================================================
-    if run_baselines and gt_keyframes is not None:
+    if run_baselines:
         print(f"\n{'='*100}")
         print("BASELINE METHODS")
         print(f"{'='*100}\n")
@@ -155,18 +155,30 @@ def run_ablation_study(video_path: str,
             baseline_keyframes = extract_uniform_keyframes(video_path, interval)
             runtime_seconds = time.time() - start_time
 
-            # Evaluate with different tolerances
-            for tol in tolerances:
-                metrics = calculate_f1_with_tolerance(baseline_keyframes, gt_keyframes, tol)
+            # Evaluate with different tolerances (only if GT available)
+            if gt_keyframes is not None:
+                for tol in tolerances:
+                    metrics = calculate_f1_with_tolerance(baseline_keyframes, gt_keyframes, tol)
 
+                    result = {
+                        'video': video_name,
+                        'method': method_name,
+                        'tolerance': tol,
+                        'num_keyframes': len(baseline_keyframes),
+                        'total_frames': total_frames,
+                        'runtime_seconds': runtime_seconds,
+                        **metrics
+                    }
+                    all_results.append(result)
+            else:
+                # No GT: save runtime and keyframe count only
                 result = {
                     'video': video_name,
                     'method': method_name,
-                    'tolerance': tol,
+                    'tolerance': None,
                     'num_keyframes': len(baseline_keyframes),
                     'total_frames': total_frames,
                     'runtime_seconds': runtime_seconds,
-                    **metrics
                 }
                 all_results.append(result)
 
@@ -191,22 +203,22 @@ def run_ablation_study(video_path: str,
     )
 
     # Evaluate each configuration
-    if gt_keyframes is not None:
-        for config in ABLATION_CONFIGS:
-            config_name = config['name']
-            result_tuple = model_keyframes.get(config_name, ([], 0.0))
-            keyframes, runtime_seconds = result_tuple
+    for config in ABLATION_CONFIGS:
+        config_name = config['name']
+        result_tuple = model_keyframes.get(config_name, ([], 0.0))
+        keyframes, runtime_seconds = result_tuple
 
-            if not keyframes:
-                print(f"⚠️ No keyframes from {config_name}, skipping evaluation")
-                continue
+        if not keyframes:
+            print(f"⚠️ No keyframes from {config_name}, skipping")
+            continue
 
-            print(f"\nEvaluating {config_name}...")
-            print(f"  Description: {config['description']}")
-            print(f"  Keyframes: {len(keyframes)}")
-            print(f"  Runtime: {runtime_seconds:.2f}s ({runtime_seconds/60:.2f}m)")
+        print(f"\n{'Evaluating' if gt_keyframes else 'Processing'} {config_name}...")
+        print(f"  Description: {config['description']}")
+        print(f"  Keyframes: {len(keyframes)}")
+        print(f"  Runtime: {runtime_seconds:.2f}s ({runtime_seconds/60:.2f}m)")
 
-            # Evaluate with different tolerances
+        # Evaluate with different tolerances (only if GT available)
+        if gt_keyframes is not None:
             for tol in tolerances:
                 metrics = calculate_f1_with_tolerance(keyframes, gt_keyframes, tol)
 
@@ -220,6 +232,17 @@ def run_ablation_study(video_path: str,
                     **metrics
                 }
                 all_results.append(result)
+        else:
+            # No GT: save runtime and keyframe count only
+            result = {
+                'video': video_name,
+                'method': config_name,
+                'tolerance': None,
+                'num_keyframes': len(keyframes),
+                'total_frames': total_frames,
+                'runtime_seconds': runtime_seconds,
+            }
+            all_results.append(result)
 
     # ====================================================================
     # SAVE RESULTS
