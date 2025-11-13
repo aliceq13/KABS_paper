@@ -18,7 +18,7 @@ from baseline_methods import extract_baseline_keyframes
 from model_wrapper import run_multiple_configurations
 from evaluation_metrics import (
     load_ground_truth_keyframes,
-    evaluate_method,
+    calculate_f1_with_tolerance,
     save_results_to_csv,
     print_evaluation_summary,
     get_total_frame_count
@@ -104,7 +104,7 @@ def run_ablation_study(video_path: str,
 
     # Load ground truth
     try:
-        gt_keyframes = load_ground_truth_keyframes(ground_truth_folder, video_name)
+        gt_keyframes = load_ground_truth_keyframes(video_name, ground_truth_folder)
         print(f"✓ Loaded ground truth: {len(gt_keyframes)} keyframes")
     except FileNotFoundError as e:
         print(f"⚠️ Warning: {e}")
@@ -135,7 +135,7 @@ def run_ablation_study(video_path: str,
 
             # Evaluate with different tolerances
             for tol in tolerances:
-                metrics = evaluate_method(baseline_keyframes, gt_keyframes, tol)
+                metrics = calculate_f1_with_tolerance(baseline_keyframes, gt_keyframes, tol)
 
                 result = {
                     'video': video_name,
@@ -186,7 +186,7 @@ def run_ablation_study(video_path: str,
 
             # Evaluate with different tolerances
             for tol in tolerances:
-                metrics = evaluate_method(keyframes, gt_keyframes, tol)
+                metrics = calculate_f1_with_tolerance(keyframes, gt_keyframes, tol)
 
                 result = {
                     'video': video_name,
@@ -210,8 +210,8 @@ def run_ablation_study(video_path: str,
     evaluation_folder = os.path.join(experiment_folder, "evaluation")
     os.makedirs(evaluation_folder, exist_ok=True)
 
-    results_csv = save_results_to_csv(all_results, evaluation_folder)
-    print(f"✓ Results saved to: {results_csv}")
+    results_csv = os.path.join(evaluation_folder, "detailed_results.csv")
+    save_results_to_csv(all_results, results_csv)
 
     # Print summary
     if all_results:
