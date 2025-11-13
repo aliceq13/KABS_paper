@@ -177,39 +177,17 @@ def visualize_histogram_comparison(img1_path: str,
     ax_hist.set_title('Histogram Comparison',
                      fontsize=11, fontweight='normal')
 
-    # Create simplified legend
+    # Create clean legend - only histogram type and colors
     from matplotlib.patches import Patch
     from matplotlib.lines import Line2D
     legend_elements = [
-        Patch(facecolor='skyblue', edgecolor='blue', alpha=0.5, label='V (Brightness) - Bar'),
-        Line2D([0], [0], color='darkblue', linewidth=2.5, marker='o', markersize=5, label='Combined (V+S) - Line'),
-        Line2D([0], [0], color='blue', linewidth=0, marker='s', markersize=8, markerfacecolor='skyblue', label='Blue: Frame 1'),
-        Line2D([0], [0], color='red', linewidth=0, marker='s', markersize=8, markerfacecolor='lightcoral', label='Red: Frame 2')
+        Patch(facecolor='skyblue', edgecolor='blue', alpha=0.5, label='Frame 1 - V (Brightness)'),
+        Patch(facecolor='lightcoral', edgecolor='red', alpha=0.5, label='Frame 2 - V (Brightness)'),
+        Line2D([0], [0], color='darkblue', linewidth=2.5, marker='o', markersize=4, label='Frame 1 - Combined (V+S)'),
+        Line2D([0], [0], color='darkred', linewidth=2.5, marker='s', markersize=4, label='Frame 2 - Combined (V+S)')
     ]
     ax_hist.legend(handles=legend_elements, loc='upper right', fontsize=9, framealpha=0.9)
     ax_hist.grid(True, alpha=0.3, linestyle='--')
-
-    # Add distance information (move to lower left to avoid legend overlap)
-    distance_text = (
-        f'Bhattacharyya Distance:\n'
-        f'  V: {v_distance:.4f}\n'
-        f'  Combined: {combined_distance:.4f}\n'
-        f'Threshold: {threshold:.2f}\n'
-        f'Status: {"✓ Similar" if is_similar else "✗ Different"}'
-    )
-
-    ax_hist.text(0.02, 0.02, distance_text,
-                transform=ax_hist.transAxes,
-                fontsize=9,
-                verticalalignment='bottom',
-                horizontalalignment='left',
-                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.85),
-                fontfamily='monospace')
-
-    # Overall title
-    status_color = 'green' if is_similar else 'red'
-    fig.suptitle(f'Profile Tracking: {"Similar" if is_similar else "Different"} Frames',
-                fontsize=12, fontweight='normal', color=status_color)
 
     # Save figure
     plt.tight_layout()
