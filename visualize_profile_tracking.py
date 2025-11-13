@@ -105,6 +105,13 @@ def visualize_histogram_comparison(img1_path: str,
     if img1 is None or img2 is None:
         raise FileNotFoundError(f"Cannot load images: {img1_path}, {img2_path}")
 
+    # Extract frame numbers from filenames (e.g., "frame_0123.jpg" -> "Frame 123")
+    import re
+    frame1_match = re.search(r'(\d+)', os.path.basename(img1_path))
+    frame2_match = re.search(r'(\d+)', os.path.basename(img2_path))
+    frame1_label = f"Frame {int(frame1_match.group(1))}" if frame1_match else "Frame 1"
+    frame2_label = f"Frame {int(frame2_match.group(1))}" if frame2_match else "Frame 2"
+
     # Convert BGR to RGB for matplotlib
     img1_rgb = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
     img2_rgb = cv2.cvtColor(img2, cv2.COLOR_BGR2RGB)
@@ -136,13 +143,13 @@ def visualize_histogram_comparison(img1_path: str,
     ax_img1 = fig.add_subplot(gs[0, 0])
     ax_img1.imshow(img1_rgb)
     ax_img1.axis('off')
-    ax_img1.set_title('Frame 1', fontsize=12, fontweight='bold')
+    ax_img1.set_title(frame1_label, fontsize=11, fontweight='normal')
 
     # Image 2 (bottom-left)
     ax_img2 = fig.add_subplot(gs[1, 0])
     ax_img2.imshow(img2_rgb)
     ax_img2.axis('off')
-    ax_img2.set_title('Frame 2', fontsize=12, fontweight='bold')
+    ax_img2.set_title(frame2_label, fontsize=11, fontweight='normal')
 
     # Histogram (spans both rows on right)
     ax_hist = fig.add_subplot(gs[:, 1])
@@ -153,45 +160,56 @@ def visualize_histogram_comparison(img1_path: str,
     bar_width = 0.8
 
     # Plot V (brightness) histograms
-    ax_hist.bar(x - bar_width/4, v_hist1, width=bar_width/2,
-               alpha=0.5, label='Frame 1 (V)', color='skyblue', edgecolor='blue')
-    ax_hist.bar(x + bar_width/4, v_hist2, width=bar_width/2,
-               alpha=0.5, label='Frame 2 (V)', color='lightcoral', edgecolor='red')
+    bar1 = ax_hist.bar(x - bar_width/4, v_hist1, width=bar_width/2,
+                       alpha=0.5, color='skyblue', edgecolor='blue')
+    bar2 = ax_hist.bar(x + bar_width/4, v_hist2, width=bar_width/2,
+                       alpha=0.5, color='lightcoral', edgecolor='red')
 
     # Plot combined histograms as lines
-    ax_hist.plot(x, combined_hist1, linewidth=2.5, label='Frame 1 (Combined)',
-                color='darkblue', marker='o', markersize=3)
-    ax_hist.plot(x, combined_hist2, linewidth=2.5, label='Frame 2 (Combined)',
-                color='darkred', marker='s', markersize=3)
+    line1, = ax_hist.plot(x, combined_hist1, linewidth=2.5,
+                         color='darkblue', marker='o', markersize=3)
+    line2, = ax_hist.plot(x, combined_hist2, linewidth=2.5,
+                         color='darkred', marker='s', markersize=3)
 
     # Styling
-    ax_hist.set_xlabel('Histogram Bins', fontsize=11, fontweight='bold')
-    ax_hist.set_ylabel('Normalized Frequency', fontsize=11, fontweight='bold')
-    ax_hist.set_title('Histogram Comparison\n(Brightness V + Combined V+S)',
-                     fontsize=12, fontweight='bold')
-    ax_hist.legend(loc='upper right', fontsize=9)
+    ax_hist.set_xlabel('Histogram Bins', fontsize=10, fontweight='normal')
+    ax_hist.set_ylabel('Normalized Frequency', fontsize=10, fontweight='normal')
+    ax_hist.set_title('Histogram Comparison',
+                     fontsize=11, fontweight='normal')
+
+    # Create simplified legend
+    from matplotlib.patches import Patch
+    from matplotlib.lines import Line2D
+    legend_elements = [
+        Patch(facecolor='skyblue', edgecolor='blue', alpha=0.5, label='V (Brightness) - Bar'),
+        Line2D([0], [0], color='darkblue', linewidth=2.5, marker='o', markersize=5, label='Combined (V+S) - Line'),
+        Line2D([0], [0], color='blue', linewidth=0, marker='s', markersize=8, markerfacecolor='skyblue', label='Blue: Frame 1'),
+        Line2D([0], [0], color='red', linewidth=0, marker='s', markersize=8, markerfacecolor='lightcoral', label='Red: Frame 2')
+    ]
+    ax_hist.legend(handles=legend_elements, loc='upper right', fontsize=9, framealpha=0.9)
     ax_hist.grid(True, alpha=0.3, linestyle='--')
 
-    # Add distance information
+    # Add distance information (move to lower left to avoid legend overlap)
     distance_text = (
-        f'Bhattacharyya Distance (V): {v_distance:.4f}\n'
-        f'Bhattacharyya Distance (Combined): {combined_distance:.4f}\n'
+        f'Bhattacharyya Distance:\n'
+        f'  V: {v_distance:.4f}\n'
+        f'  Combined: {combined_distance:.4f}\n'
         f'Threshold: {threshold:.2f}\n'
         f'Status: {"✓ Similar" if is_similar else "✗ Different"}'
     )
 
-    ax_hist.text(0.98, 0.98, distance_text,
+    ax_hist.text(0.02, 0.02, distance_text,
                 transform=ax_hist.transAxes,
-                fontsize=10,
-                verticalalignment='top',
-                horizontalalignment='right',
-                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.8),
+                fontsize=9,
+                verticalalignment='bottom',
+                horizontalalignment='left',
+                bbox=dict(boxstyle='round', facecolor='wheat', alpha=0.85),
                 fontfamily='monospace')
 
     # Overall title
     status_color = 'green' if is_similar else 'red'
     fig.suptitle(f'Profile Tracking: {"Similar" if is_similar else "Different"} Frames',
-                fontsize=14, fontweight='bold', color=status_color)
+                fontsize=12, fontweight='normal', color=status_color)
 
     # Save figure
     plt.tight_layout()
