@@ -9,6 +9,7 @@ Ablation Study for Keyframe Extraction
 
 import os
 import sys
+import time
 from datetime import datetime
 from typing import List, Dict
 
@@ -125,9 +126,12 @@ def run_ablation_study(video_path: str,
             method_name = f"Uniform-{interval}"
             print(f"Running {method_name}...")
 
+            # Measure runtime
+            start_time = time.time()
             baseline_keyframes = extract_baseline_keyframes(
                 video_path, interval=interval
             )
+            runtime_seconds = time.time() - start_time
 
             # Evaluate with different tolerances
             for tol in tolerances:
@@ -139,11 +143,12 @@ def run_ablation_study(video_path: str,
                     'tolerance': tol,
                     'num_keyframes': len(baseline_keyframes),
                     'total_frames': total_frames,
+                    'runtime_seconds': runtime_seconds,
                     **metrics
                 }
                 all_results.append(result)
 
-            print(f"  ✓ {method_name}: {len(baseline_keyframes)} keyframes\n")
+            print(f"  ✓ {method_name}: {len(baseline_keyframes)} keyframes (Runtime: {runtime_seconds:.2f}s)\n")
 
     # ====================================================================
     # ABLATION STUDY CONFIGURATIONS
@@ -167,7 +172,8 @@ def run_ablation_study(video_path: str,
     if gt_keyframes is not None:
         for config in ABLATION_CONFIGS:
             config_name = config['name']
-            keyframes = model_keyframes.get(config_name, [])
+            result_tuple = model_keyframes.get(config_name, ([], 0.0))
+            keyframes, runtime_seconds = result_tuple
 
             if not keyframes:
                 print(f"⚠️ No keyframes from {config_name}, skipping evaluation")
@@ -176,6 +182,7 @@ def run_ablation_study(video_path: str,
             print(f"\nEvaluating {config_name}...")
             print(f"  Description: {config['description']}")
             print(f"  Keyframes: {len(keyframes)}")
+            print(f"  Runtime: {runtime_seconds:.2f}s ({runtime_seconds/60:.2f}m)")
 
             # Evaluate with different tolerances
             for tol in tolerances:
@@ -187,6 +194,7 @@ def run_ablation_study(video_path: str,
                     'tolerance': tol,
                     'num_keyframes': len(keyframes),
                     'total_frames': total_frames,
+                    'runtime_seconds': runtime_seconds,
                     **metrics
                 }
                 all_results.append(result)
