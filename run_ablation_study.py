@@ -62,7 +62,7 @@ def run_ablation_study(video_path: str,
                        ground_truth_folder: str,
                        output_base_folder: str,
                        run_baselines: bool = True,
-                       baseline_intervals: List[int] = [10, 15, 30, 60],
+                       baseline_intervals: List[int] = [15],  # Ablation study용: 대표 baseline만
                        tolerances: List[int] = [0, 15, 30]):
     """
     Run ablation study experiment.
@@ -249,8 +249,8 @@ Example:
     parser.add_argument('--no-baselines', action='store_true',
                        help='Skip baseline methods')
     parser.add_argument('--baseline-intervals', type=int, nargs='+',
-                       default=[10, 15, 30, 60],
-                       help='Baseline sampling intervals (default: 10 15 30 60)')
+                       default=[15],
+                       help='Baseline sampling intervals (default: 15, for ablation study)')
     parser.add_argument('--tolerances', type=int, nargs='+',
                        default=[0, 15, 30],
                        help='Temporal tolerances for evaluation (default: 0 15 30)')
