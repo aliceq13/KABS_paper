@@ -153,7 +153,7 @@ def profile_tracking_filter(frames_data, hist_threshold=0.3, weight_brightness=0
     return filtered
 
 
-def reid_merge_duplicates(frames_data, reid_model, device, reid_threshold=0.8):
+def reid_merge_duplicates(frames_data, reid_model, device, reid_threshold=0.6):
     """Merge duplicate track IDs using Re-ID"""
     if not TORCHREID_AVAILABLE or reid_model is None:
         print("⚠️ Re-ID unavailable, skipping merge")
@@ -276,7 +276,7 @@ def extract_keyframes_profile_reid(
     model_path: str = "yolo11m.pt",
     torchreid_model_path: str = None,
     hist_threshold: float = 0.3,
-    reid_threshold: float = 0.8,
+    reid_threshold: float = 0.6,
     conf_threshold: float = 0.25,
     save_frames: bool = True
 ) -> List[int]:
