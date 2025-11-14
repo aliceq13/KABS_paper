@@ -1,10 +1,11 @@
 """
 Ablation Study for Keyframe Extraction
 
-3가지 구성으로 각 컴포넌트의 효과를 평가:
-1. Full Model: YOLO + ByteTrack + Profile Tracking (Pre + Post)
-2. No Profile: YOLO + ByteTrack (Profile tracking 제거)
-3. Profile Only: YOLO + Profile Tracking (Tracking 제거)
+4가지 구성으로 각 컴포넌트의 효과를 평가:
+1. Full Model: YOLO + ByteTrack + Profile Tracking + Re-ID (Complete)
+2. No Profile: YOLO + ByteTrack + Re-ID (Profile Tracking 제거)
+3. Profile Only: YOLO + Profile Tracking + Re-ID (ByteTrack 제거)
+4. No Tracking: YOLO + Re-ID (ByteTrack 제거, Profile Tracking 제거)
 """
 
 import os
@@ -53,32 +54,45 @@ def extract_uniform_keyframes(video_path: str, interval: int) -> List[int]:
 ABLATION_CONFIGS = [
     {
         'name': 'Full_Model',
-        'description': 'YOLO+ByteTrack+Profile (Complete)',
+        'description': 'YOLO+ByteTrack+Profile+Re-ID (Complete)',
         'model_type': 'yolo',
         'model_path': 'yolo11m.pt',
         'tracker': 'bytetrack.yaml',
         'profile_only': False,
+        'profile_reid': False,
+        'reid_only': False,
         'profile_iterations': 3,
         'apply_post_filter': True,
     },
     {
         'name': 'No_Profile',
-        'description': 'YOLO+ByteTrack (No Profile Tracking)',
+        'description': 'YOLO+ByteTrack+Re-ID (No Profile Tracking)',
         'model_type': 'yolo',
         'model_path': 'yolo11m.pt',
         'tracker': 'bytetrack.yaml',
         'profile_only': False,
+        'profile_reid': False,
+        'reid_only': False,
         'profile_iterations': 0,  # ← Profile tracking 끄기
         'apply_post_filter': False,  # ← Post-filter도 끄기
     },
     {
         'name': 'Profile_Only',
-        'description': 'YOLO+Profile (No Tracking)',
+        'description': 'YOLO+Profile+Re-ID (No Tracking)',
         'model_type': 'yolo',
         'model_path': 'yolo11m.pt',
-        'profile_only': True,  # ← Profile-only 모드
-        # tracker는 사용 안 함
-        # profile_iterations는 profile_only 스크립트 내부에서 설정
+        'profile_only': False,
+        'profile_reid': True,  # ← Profile+Re-ID 모드
+        'reid_only': False,
+    },
+    {
+        'name': 'No_Tracking',
+        'description': 'YOLO+Re-ID (No Tracking, No Profile)',
+        'model_type': 'yolo',
+        'model_path': 'yolo11m.pt',
+        'profile_only': False,
+        'profile_reid': False,
+        'reid_only': True,  # ← Re-ID only 모드
     }
 ]
 
@@ -120,7 +134,7 @@ def run_ablation_study(video_path: str,
     print(f"{'='*100}")
     print(f"Video: {video_path}")
     print(f"Output: {experiment_folder}")
-    print(f"Configurations: {len(ABLATION_CONFIGS)}")
+    print(f"Configurations: {len(ABLATION_CONFIGS)} (Full_Model, No_Profile, Profile_Only, No_Tracking)")
     print(f"{'='*100}\n")
 
     # Get total frame count
@@ -281,9 +295,10 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Ablation Study Configurations:
-  1. Full_Model    : YOLO + ByteTrack + Profile (Pre + Post)
-  2. No_Profile    : YOLO + ByteTrack (No Profile Tracking)
-  3. Profile_Only  : YOLO + Profile (No Tracking)
+  1. Full_Model    : YOLO + ByteTrack + Profile + Re-ID (Complete)
+  2. No_Profile    : YOLO + ByteTrack + Re-ID (No Profile Tracking)
+  3. Profile_Only  : YOLO + Profile + Re-ID (No ByteTrack)
+  4. No_Tracking   : YOLO + Re-ID (No ByteTrack, No Profile)
 
 Example:
   python run_ablation_study.py --video my_video.mp4
