@@ -109,8 +109,10 @@ def visualize_histogram_comparison(img1_path: str,
     import re
     frame1_match = re.search(r'(\d+)', os.path.basename(img1_path))
     frame2_match = re.search(r'(\d+)', os.path.basename(img2_path))
-    frame1_label = f"Frame {int(frame1_match.group(1))}" if frame1_match else "Frame 1"
-    frame2_label = f"Frame {int(frame2_match.group(1))}" if frame2_match else "Frame 2"
+    frame1_num = int(frame1_match.group(1)) if frame1_match else 1
+    frame2_num = int(frame2_match.group(1)) if frame2_match else 2
+    frame1_label = f"Frame {frame1_num}"
+    frame2_label = f"Frame {frame2_num}"
 
     # Convert BGR to RGB for matplotlib
     img1_rgb = cv2.cvtColor(img1, cv2.COLOR_BGR2RGB)
@@ -181,12 +183,12 @@ def visualize_histogram_comparison(img1_path: str,
     from matplotlib.patches import Patch
     from matplotlib.lines import Line2D
     legend_elements = [
-        Patch(facecolor='skyblue', edgecolor='blue', alpha=0.5, label='Frame 1 - V (Brightness)'),
-        Patch(facecolor='lightcoral', edgecolor='red', alpha=0.5, label='Frame 2 - V (Brightness)'),
-        Line2D([0], [0], color='darkblue', linewidth=2.5, marker='o', markersize=4, label='Frame 1 - Combined (V+S)'),
-        Line2D([0], [0], color='darkred', linewidth=2.5, marker='s', markersize=4, label='Frame 2 - Combined (V+S)')
+        Patch(facecolor='skyblue', edgecolor='blue', alpha=0.5, label=f'#{frame1_num} - Brightness Profile'),
+        Patch(facecolor='lightcoral', edgecolor='red', alpha=0.5, label=f'#{frame2_num} - Brightness Profile'),
+        Line2D([0], [0], color='darkblue', linewidth=2.5, marker='o', markersize=4, label=f'#{frame1_num} - Color Profile'),
+        Line2D([0], [0], color='darkred', linewidth=2.5, marker='s', markersize=4, label=f'#{frame2_num} - Color Profile')
     ]
-    ax_hist.legend(handles=legend_elements, loc='upper right', fontsize=9, framealpha=0.9)
+    ax_hist.legend(handles=legend_elements, loc='upper right', fontsize=11, framealpha=0.9)
     ax_hist.grid(True, alpha=0.3, linestyle='--')
 
     # Save figure
