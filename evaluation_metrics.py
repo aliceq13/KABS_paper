@@ -264,14 +264,22 @@ def aggregate_results(results_list: List[Dict], group_by: str = 'method') -> Dic
     for key, group in grouped.items():
         agg_stats = {group_by: key}
 
-        # Calculate mean for numeric fields
+        # Calculate mean for numeric fields only
         numeric_fields = [k for k in group[0].keys()
                          if k not in [group_by, 'video_name', 'method']]
 
         for field in numeric_fields:
             values = [r[field] for r in group]
-            agg_stats[f'{field}_mean'] = np.mean(values)
-            agg_stats[f'{field}_std'] = np.std(values)
+
+            # Filter out None values
+            numeric_values = [v for v in values if v is not None and isinstance(v, (int, float))]
+
+            if numeric_values:  # Only calculate if we have numeric values
+                agg_stats[f'{field}_mean'] = np.mean(numeric_values)
+                agg_stats[f'{field}_std'] = np.std(numeric_values)
+            else:
+                agg_stats[f'{field}_mean'] = None
+                agg_stats[f'{field}_std'] = None
 
         agg_stats['num_videos'] = len(group)
         aggregated[key] = agg_stats
@@ -291,22 +299,55 @@ def print_evaluation_summary(results_list: List[Dict], tolerances: List[int] = [
     print("EVALUATION SUMMARY")
     print("="*100)
 
-    # Aggregate by method
-    method_stats = aggregate_results(results_list, group_by='method')
+    # Group by method and tolerance
+    grouped = defaultdict(lambda: defaultdict(list))
 
-    for method, stats in method_stats.items():
+    for result in results_list:
+        method = result['method']
+        tol = result.get('tolerance')
+        grouped[method][tol].append(result)
+
+    for method, tol_groups in grouped.items():
         print(f"\n📊 Method: {method}")
-        print(f"   Videos evaluated: {stats['num_videos']}")
-        print(f"   Avg keyframes: {stats['num_keyframes_mean']:.1f} ± {stats['num_keyframes_std']:.1f}")
-        print(f"   Avg compression ratio: {stats['compression_ratio_mean']:.4f} ± {stats['compression_ratio_std']:.4f}")
-        print()
 
+        # Print basic stats (aggregate across all tolerances for general stats)
+        all_results = []
+        for tol_results in tol_groups.values():
+            all_results.extend(tol_results)
+
+        if all_results:
+            num_keyframes = [r['num_keyframes'] for r in all_results]
+            runtime_seconds = [r['runtime_seconds'] for r in all_results if r.get('runtime_seconds') is not None]
+
+            print(f"   Videos evaluated: {len(set(r['video'] for r in all_results))}")
+            if num_keyframes:
+                print(f"   Avg keyframes: {np.mean(num_keyframes):.1f} ± {np.std(num_keyframes):.1f}")
+
+            # Calculate compression ratio if total_frames available
+            total_frames_list = [r['total_frames'] for r in all_results if r.get('total_frames')]
+            if total_frames_list and num_keyframes:
+                compression_ratios = [nk / tf for nk, tf in zip(num_keyframes, total_frames_list)]
+                print(f"   Avg compression ratio: {np.mean(compression_ratios):.4f} ± {np.std(compression_ratios):.4f}")
+
+            if runtime_seconds:
+                print(f"   Avg runtime: {np.mean(runtime_seconds):.2f}s ± {np.std(runtime_seconds):.2f}s")
+            print()
+
+        # Print evaluation metrics per tolerance (only if GT was available)
         for tolerance in tolerances:
-            suffix = f'_tol{tolerance}'
-            print(f"   Tolerance ±{tolerance} frames:")
-            print(f"      Precision: {stats[f'precision{suffix}_mean']:.4f} ± {stats[f'precision{suffix}_std']:.4f}")
-            print(f"      Recall:    {stats[f'recall{suffix}_mean']:.4f} ± {stats[f'recall{suffix}_std']:.4f}")
-            print(f"      F1-Score:  {stats[f'f1_score{suffix}_mean']:.4f} ± {stats[f'f1_score{suffix}_std']:.4f}")
+            if tolerance in tol_groups:
+                tol_results = tol_groups[tolerance]
+
+                # Check if evaluation metrics exist
+                if tol_results and 'precision' in tol_results[0]:
+                    precision_vals = [r['precision'] for r in tol_results]
+                    recall_vals = [r['recall'] for r in tol_results]
+                    f1_vals = [r['f1_score'] for r in tol_results]
+
+                    print(f"   Tolerance ±{tolerance} frames:")
+                    print(f"      Precision: {np.mean(precision_vals):.4f} ± {np.std(precision_vals):.4f}")
+                    print(f"      Recall:    {np.mean(recall_vals):.4f} ± {np.std(recall_vals):.4f}")
+                    print(f"      F1-Score:  {np.mean(f1_vals):.4f} ± {np.std(f1_vals):.4f}")
 
     print("\n" + "="*100 + "\n")
 
