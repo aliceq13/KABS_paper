@@ -722,7 +722,7 @@ def extract_torchreid_features_dual(crop_bgr, object_class, person_reid_model, v
         device: cuda or cpu
 
     Returns:
-        features: Feature vector (numpy array, 512-dim)
+        features: Feature vector (numpy array, 512-dim or 2048-dim)
     """
     # Select model based on class
     if object_class == 0:  # Person class in COCO
@@ -740,23 +740,42 @@ def extract_torchreid_features_dual(crop_bgr, object_class, person_reid_model, v
         crop_rgb = cv2.cvtColor(crop_bgr, cv2.COLOR_BGR2RGB)
         crop_pil = Image.fromarray(crop_rgb)
 
-        # TorchReID transforms (standard for ReID)
-        transform = transforms.Compose([
-            transforms.Resize((256, 128)),
-            transforms.ToTensor(),
-            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-        ])
+        # Check if model is FastReID
+        is_fastreid = False
+        if hasattr(selected_model, '__class__') and selected_model.__class__.__name__ == 'FastReIDWrapper':
+            is_fastreid = True
 
-        # Preprocess
-        tensor = transform(crop_pil).unsqueeze(0).to(device)
+        if is_fastreid:
+            # FastReID Preprocessing: Resize -> Tensor (0-255)
+            # FastReID models typically expect 0-255 inputs and normalize internally
+            transform = transforms.Compose([
+                transforms.Resize((256, 128)),
+                transforms.ToTensor(), # Converts to [0, 1]
+            ])
+            # Convert back to [0, 255] for FastReID
+            tensor = transform(crop_pil).unsqueeze(0).to(device) * 255.0
+        else:
+            # TorchReID Preprocessing: Resize -> Tensor -> Normalize
+            transform = transforms.Compose([
+                transforms.Resize((256, 128)),
+                transforms.ToTensor(),
+                transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+            ])
+            tensor = transform(crop_pil).unsqueeze(0).to(device)
 
-        # Inference (returns 512-dim features since classifier is None)
+        # Inference
         with torch.no_grad():
             features = selected_model(tensor)
-            features = features.cpu().numpy().flatten()
+            # FastReID might return a tensor on GPU
+            if isinstance(features, torch.Tensor):
+                features = features.cpu().numpy().flatten()
+            else:
+                # Fallback if it returns something else (though wrapper ensures tensor)
+                features = np.array(features).flatten()
 
         return features
     except Exception as e:
+        print(f"Error in feature extraction: {e}")
         return None
 
 
@@ -1749,7 +1768,7 @@ if __name__ == "__main__":
         "vehicle_reid_model_path": None,  # None = use registry key above
 
         # 단일 Re-ID 모드 (legacy, use_dual_reid=False일 때만 사용)
-        "torchreid_model_path": "osnet_x1_0_market_256x128_amsgrad_ep150_stp60_lr0.0015_b64_fb10_softmax_labelsmooth_flip.pth"
+        "torchreid_model_path": "osnet_x1_0_market_256x128_amsgrad_ep150_stp60_lr0.0015_b64_fb10_softmax_labelsmooth_flip.pth",
         
         # ========================================
         # Depth 추정 설정 (Depth Estimation Configuration)

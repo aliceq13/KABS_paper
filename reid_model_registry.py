@@ -5,6 +5,8 @@ Supports multiple SOTA Re-ID models for person and vehicle re-identification
 
 import torch
 import os
+import sys
+import urllib.request
 from typing import Optional, Tuple
 
 # Check if torchreid is available
@@ -14,6 +16,40 @@ try:
 except ImportError:
     TORCHREID_AVAILABLE = False
     print("⚠️ Warning: torchreid not installed")
+
+# Check if fast-reid is available
+FASTREID_ROOT = os.path.join(os.path.dirname(os.path.abspath(__file__)), "fast-reid")
+if os.path.exists(FASTREID_ROOT):
+    sys.path.append(FASTREID_ROOT)
+    try:
+        from fastreid.config import get_cfg
+        from fastreid.modeling import build_model
+        from fastreid.utils.checkpoint import Checkpointer
+        FASTREID_AVAILABLE = True
+    except ImportError as e:
+        print(f"⚠️ Warning: fast-reid found but import failed: {e}")
+        FASTREID_AVAILABLE = False
+else:
+    FASTREID_AVAILABLE = False
+
+
+# ============================================================================
+# FastReID Wrapper
+# ============================================================================
+class FastReIDWrapper(torch.nn.Module):
+    """Wrapper to make FastReID models compatible with TorchReID interface"""
+    def __init__(self, model):
+        super().__init__()
+        self.model = model
+    
+    def forward(self, x):
+        # FastReID expects dict with "images" key
+        # x is (B, C, H, W) tensor
+        if self.model.training:
+            return self.model({"images": x})
+        else:
+            # Inference: returns features
+            return self.model({"images": x})
 
 
 # ============================================================================
@@ -77,52 +113,28 @@ PERSON_REID_MODELS = {
         "paper": "https://arxiv.org/abs/1512.03385"
     },
 
-    # MobileNet variants (lightweight)
-    "mlfn": {
-        "name": "MLFN",
-        "description": "Multi-Level Factorisation Net (lightweight)",
-        "num_classes": 0,
-        "pretrained_name": "mlfn",
-        "framework": "torchreid",
-        "paper": "https://arxiv.org/abs/1803.09132"
+    # FastReID Models
+    "fastreid_sbs_r50": {
+        "name": "FastReID SBS-R50",
+        "description": "Strong Baseline with ResNet50 (FastReID)",
+        "num_classes": 1501,
+        "config_file": "fast-reid/configs/Market1501/sbs_R50.yml",
+        "url": "https://github.com/JDAI-CV/fast-reid/releases/download/v0.1.1/market_sbs_R50.pth",
+        "local_path": "market_sbs_R50.pth",
+        "framework": "fastreid",
+        "paper": "https://arxiv.org/abs/2006.02631",
+        "note": "⭐ SOTA Performance"
     },
-
-    # SOTA Models (External - require separate installation)
-    # Note: These models require additional setup beyond torchreid
-    "solider": {
-        "name": "SOLIDER",
-        "description": "Semantic-Controllable Self-Supervised Learning (SOTA 2023)",
-        "num_classes": 0,
-        "pretrained_name": None,
-        "local_path": "solider_pretrained.pth",
-        "framework": "custom",  # Requires SOLIDER-REID repo
-        "paper": "https://arxiv.org/abs/2303.16317",
-        "github": "https://github.com/tinyvision/SOLIDER-REID",
-        "note": "⭐ SOTA performance, used by NVIDIA. Requires separate installation."
-    },
-
-    "personvit": {
-        "name": "PersonViT",
-        "description": "Large-scale Self-supervised ViT for Person Re-ID (2024)",
-        "num_classes": 0,
-        "pretrained_name": None,
-        "local_path": "personvit_pretrained.pth",
-        "framework": "custom",  # Requires PersonViT repo
-        "paper": "https://arxiv.org/abs/2408.05398",
-        "github": "https://github.com/hustvl/PersonViT",
-        "note": "⭐ Latest SOTA (Aug 2024). Requires separate installation."
-    },
-
-    "clip_reid": {
-        "name": "CLIP-ReID",
-        "description": "Vision-Language Model for Re-ID (AAAI 2023)",
-        "num_classes": 0,
-        "pretrained_name": None,
-        "local_path": "clip_reid_pretrained.pth",
-        "framework": "custom",  # Requires CLIP-ReID repo
-        "paper": "https://arxiv.org/abs/2211.13977",
-        "github": "https://github.com/Syliz517/CLIP-ReID",
-        "note": "Uses vision-language pre-training. Requires separate installation."
+    "fastreid_sbs_r101": {
+        "name": "FastReID SBS-R101-IBN",
+        "description": "Strong Baseline with ResNet101-IBN (FastReID)",
+        "num_classes": 1501,
+        "config_file": "fast-reid/configs/Market1501/sbs_R101-ibn.yml",
+        "url": "https://github.com/JDAI-CV/fast-reid/releases/download/v0.1.1/market_sbs_R101-ibn.pth",
+        "local_path": "market_sbs_R101-ibn.pth",
+        "framework": "fastreid",
+        "paper": "https://arxiv.org/abs/2006.02631",
+        "note": "⭐ Best Accuracy (Heavy)"
     },
 }
 
@@ -163,12 +175,85 @@ VEHICLE_REID_MODELS = {
         "framework": "torchreid",
         "paper": "https://arxiv.org/abs/1512.03385"
     },
+
+    # FastReID Vehicle Models
+    "fastreid_veri_sbs_r50": {
+        "name": "FastReID VeRi SBS-R50",
+        "description": "Strong Baseline on VeRi-776 (FastReID)",
+        "num_classes": 776,
+        "config_file": "fast-reid/configs/VeRi/sbs_R50-ibn.yml",
+        "url": "https://github.com/JDAI-CV/fast-reid/releases/download/v0.1.1/veri_sbs_R50-ibn.pth",
+        "local_path": "veri_sbs_R50-ibn.pth",
+        "framework": "fastreid",
+        "paper": "https://arxiv.org/abs/2006.02631",
+        "note": "⭐ SOTA for Vehicles (VeRi)"
+    },
+    "fastreid_vehicleid_bot_r50": {
+        "name": "FastReID VehicleID BoT-R50",
+        "description": "Bag of Tricks on VehicleID (FastReID)",
+        "num_classes": 13164, # Large scale
+        "config_file": "fast-reid/configs/VehicleID/bagtricks_R50-ibn.yml",
+        "url": "https://github.com/JDAI-CV/fast-reid/releases/download/v0.1.1/vehicleid_bot_R50-ibn.pth",
+        "local_path": "vehicleid_bot_R50-ibn.pth",
+        "framework": "fastreid",
+        "paper": "https://arxiv.org/abs/2006.02631",
+        "note": "⭐ SOTA for Vehicles (Large Scale)"
+    },
 }
 
 
 # ============================================================================
 # Model Loading Functions
 # ============================================================================
+
+def download_file(url, dest_path):
+    """Download file with progress bar"""
+    print(f"Downloading {url} to {dest_path}...")
+    try:
+        urllib.request.urlretrieve(url, dest_path)
+        print("✓ Download complete")
+        return True
+    except Exception as e:
+        print(f"✗ Download failed: {e}")
+        return False
+
+def load_fastreid_model(model_info, device):
+    """Load FastReID model"""
+    if not FASTREID_AVAILABLE:
+        print("⚠️ FastReID not available")
+        return None
+
+    config_file = model_info.get("config_file")
+    if not os.path.exists(config_file):
+        print(f"✗ Config file not found: {config_file}")
+        return None
+
+    # Load config
+    cfg = get_cfg()
+    cfg.merge_from_file(config_file)
+    cfg.MODEL.BACKBONE.PRETRAIN = False  # Don't download ImageNet weights if loading checkpoint
+    cfg.MODEL.DEVICE = device
+    
+    # Build model
+    model = build_model(cfg)
+    model.eval()
+    
+    # Load weights
+    weights_path = model_info.get("local_path")
+    if not os.path.exists(weights_path):
+        url = model_info.get("url")
+        if url:
+            print(f"   Weights not found locally. Downloading from {url}...")
+            if not download_file(url, weights_path):
+                return None
+        else:
+            print(f"✗ Weights not found and no URL provided: {weights_path}")
+            return None
+            
+    print(f"   Loading weights from: {weights_path}")
+    Checkpointer(model).load(weights_path)
+    
+    return FastReIDWrapper(model)
 
 def load_reid_model(
     model_key: str,
@@ -188,10 +273,6 @@ def load_reid_model(
     Returns:
         Tuple of (model, model_info)
     """
-    if not TORCHREID_AVAILABLE:
-        print("⚠️ torchreid not available")
-        return None, {}
-
     # Select registry
     registry = PERSON_REID_MODELS if model_type == "person" else VEHICLE_REID_MODELS
 
@@ -202,6 +283,29 @@ def load_reid_model(
     model_info = registry[model_key]
     print(f"\n📊 Loading {model_type.upper()} Re-ID Model: {model_info['name']}")
     print(f"   Description: {model_info['description']}")
+    
+    framework = model_info.get("framework", "torchreid")
+    
+    # Handle FastReID
+    if framework == "fastreid":
+        try:
+            model = load_fastreid_model(model_info, device)
+            if model:
+                print(f"   ✓ FastReID model ready on {device}")
+                return model, model_info
+            else:
+                print("   ✗ Failed to load FastReID model")
+                return None, model_info
+        except Exception as e:
+            print(f"   ✗ Error loading FastReID model: {e}")
+            import traceback
+            traceback.print_exc()
+            return None, model_info
+
+    # Handle TorchReID
+    if not TORCHREID_AVAILABLE:
+        print("⚠️ torchreid not available")
+        return None, {}
 
     try:
         # Determine model architecture
@@ -271,6 +375,7 @@ def list_available_models(model_type: str = "person") -> None:
         print(f"\n{idx}. Key: '{key}'")
         print(f"   Name: {info['name']}")
         print(f"   Description: {info['description']}")
+        print(f"   Framework: {info.get('framework', 'torchreid')}")
 
         if 'local_path' in info:
             path = info['local_path']
@@ -308,7 +413,12 @@ if __name__ == "__main__":
         device = "cuda" if torch.cuda.is_available() else "cpu"
 
         print("\nTesting model loading...")
-        model, info = load_reid_model("osnet_x1_0", "person", device)
+        # Test FastReID if available
+        if FASTREID_AVAILABLE:
+            print("\nTesting FastReID loading...")
+            model, info = load_reid_model("fastreid_sbs_r50", "person", device)
+        else:
+            model, info = load_reid_model("osnet_x1_0", "person", device)
 
         if model:
             print(f"\n✓ Successfully loaded: {info['name']}")

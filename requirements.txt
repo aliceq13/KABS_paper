@@ -13,10 +13,10 @@ pillow>=10.0.0
 torchreid>=2.0.0
 
 # Depth Estimation
-transformers>=4.30.0
+transformers>=4.30.0,<4.38.0
 
 # Scientific Computing
-numpy>=1.24.0
+numpy>=1.24.0,<2.0
 scipy>=1.11.0
 matplotlib>=3.7.0
 
@@ -26,3 +26,9 @@ termcolor>=2.3.0
 h5py>=3.9.0
 future>=0.18.0
 tb-nightly
+
+# FastReID Dependencies
+cython
+faiss-gpu>=1.7.0
+tabulate
+gdown

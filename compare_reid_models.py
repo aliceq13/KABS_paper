@@ -18,6 +18,7 @@ from yolo_osnet_4_dual_reid import main as pipeline_main
 # ============================================================================
 
 PERSON_REID_MODELS_TO_TEST = [
+    {"key": "fastreid_sbs_r50", "name": "FastReID SBS-R50 (SOTA)"},
     {"key": "osnet_market1501", "name": "OSNet Market-1501 (Best)"},
     {"key": "osnet_x1_0", "name": "OSNet x1.0 Pretrained"},
     {"key": "osnet_x0_75", "name": "OSNet x0.75 (Faster)"},
@@ -25,6 +26,8 @@ PERSON_REID_MODELS_TO_TEST = [
 ]
 
 VEHICLE_REID_MODELS_TO_TEST = [
+    {"key": "fastreid_veri_sbs_r50", "name": "FastReID VeRi SBS-R50 (SOTA)"},
+    {"key": "fastreid_vehicleid_bot_r50", "name": "FastReID VehicleID BoT-R50 (Large Scale)"},
     {"key": "osnet_x1_0", "name": "OSNet x1.0 Pretrained"},
     {"key": "resnet50_fc512", "name": "ResNet50 Baseline"},
     # {"key": "osnet_veri776", "name": "OSNet VeRi-776 (if available)"},  # Uncomment if you have this model
@@ -162,7 +165,7 @@ def compare_reid_models(
 
             print(f"\n{'='*100}")
             print(f"Testing: {model_name} (key: {model_key})")
-            print(f"{'="*100}")
+            print(f"{'='*100}")
 
             output_folder = os.path.join(output_base_folder, f"vehicle_{model_key}")
             config = base_config.copy()

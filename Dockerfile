@@ -6,10 +6,17 @@ FROM pytorch/pytorch:2.1.0-cuda12.1-cudnn8-runtime
 # Set working directory
 WORKDIR /workspace
 
+# Prevent interactive prompts during build (e.g. timezone selection)
+ENV DEBIAN_FRONTEND=noninteractive
+
 # Install system dependencies
+# Added build-essential (gcc/g++) for compiling FastReID extensions
 RUN apt-get update && apt-get install -y \
     git \
     wget \
+    build-essential \
+    g++ \
+    gcc \
     libgl1-mesa-glx \
     libglib2.0-0 \
     libsm6 \
@@ -19,6 +26,7 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Python dependencies
+# Added cython, faiss-gpu, and tabulate for FastReID
 RUN pip install --no-cache-dir \
     opencv-python \
     ultralytics \
@@ -31,13 +39,22 @@ RUN pip install --no-cache-dir \
     termcolor \
     tb-nightly \
     future \
-    h5py
+    h5py \
+    cython \
+    faiss-gpu \
+    tabulate \
+    gdown
 
 # Create directories for models and data
 RUN mkdir -p /workspace/models /workspace/data /workspace/output
 
 # Copy application code
 COPY . /workspace/
+
+# Install FastReID from local clone
+# Removed pip install -e . as setup.py is missing
+# Instead, we add it to PYTHONPATH
+ENV PYTHONPATH="${PYTHONPATH}:/workspace/fast-reid"
 
 # Set environment variables
 ENV PYTHONUNBUFFERED=1
