@@ -126,7 +126,7 @@ def compare_reid_models(
 
                 # Load results
                 json_path = os.path.join(output_folder, "keyframe_summary_unified.json")
-                with open(json_path, 'r') as f:
+                with open(json_path, 'r', encoding='utf-8') as f:
                     summary = json.load(f)
 
                 num_keyframes = summary.get("num_keyframes", 0)
@@ -183,7 +183,7 @@ def compare_reid_models(
 
                 # Load results
                 json_path = os.path.join(output_folder, "keyframe_summary_unified.json")
-                with open(json_path, 'r') as f:
+                with open(json_path, 'r', encoding='utf-8') as f:
                     summary = json.load(f)
 
                 num_keyframes = summary.get("num_keyframes", 0)
