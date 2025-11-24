@@ -62,6 +62,8 @@ def run_user_model(video_path: str,
                   profile_only: bool = False,
                   profile_reid: bool = False,
                   reid_only: bool = False,
+                  no_reid: bool = False,
+                  baseline: bool = False,
                   profile_iterations: int = 3,
                   apply_post_filter: bool = True) -> Tuple[List[int], float]:
     """
@@ -77,12 +79,54 @@ def run_user_model(video_path: str,
         profile_only: If True, use profile-only mode (no tracking, no Re-ID)
         profile_reid: If True, use profile+reid mode (no tracking, with Re-ID)
         reid_only: If True, use reid-only mode (no tracking, no profile, with Re-ID)
+        no_reid: If True, use ByteTrack+Profile without Re-ID
+        baseline: If True, use YOLO only (no tracking, no profile, no Re-ID)
         profile_iterations: Profile tracking iterations (0 = disable)
         apply_post_filter: Apply post-greedy filtering
 
     Returns:
         Tuple of (keyframe_indices, runtime_seconds)
     """
+    # Baseline mode: YOLO only (no tracking, no profile, no Re-ID)
+    if baseline:
+        baseline_path = "keyframe_extraction_baseline.py"
+
+        if not os.path.exists(baseline_path):
+            raise FileNotFoundError(f"Baseline script not found: {baseline_path}")
+
+        print(f"\n{'='*80}")
+        print(f"Running BASELINE mode (YOLO Only)")
+        print(f"  Model: {model_type.upper()}")
+        print(f"  Output: {output_folder}")
+        print(f"{'='*80}\n")
+
+        # Import baseline module
+        baseline_module = load_user_model_module(baseline_path)
+
+        # Run baseline extraction with timing
+        start_time = time.time()
+        try:
+            baseline_module.main(
+                video_path=video_path,
+                output_folder=output_folder,
+                model_path=model_path
+            )
+        except Exception as e:
+            print(f"✗ Error running baseline mode: {e}")
+            raise
+        end_time = time.time()
+
+        runtime_seconds = end_time - start_time
+
+        # Extract keyframe indices from JSON
+        json_path = os.path.join(output_folder, "keyframe_summary_unified.json")
+        keyframe_indices = extract_keyframes_from_json(json_path)
+
+        print(f"✓ Extracted {len(keyframe_indices)} keyframes (Baseline)")
+        print(f"⏱️  Runtime: {runtime_seconds:.2f} seconds ({runtime_seconds/60:.2f} minutes)")
+
+        return keyframe_indices, runtime_seconds
+
     # Profile+Re-ID mode: Use profile tracking + Re-ID without ByteTrack
     if profile_reid:
         profile_reid_path = "keyframe_extraction_profile_reid.py"
@@ -204,6 +248,100 @@ def run_user_model(video_path: str,
         keyframe_indices = extract_keyframes_from_json(json_path)
 
         print(f"✓ Extracted {len(keyframe_indices)} keyframes (Profile-Only)")
+        print(f"⏱️  Runtime: {runtime_seconds:.2f} seconds ({runtime_seconds/60:.2f} minutes)")
+
+        return keyframe_indices, runtime_seconds
+
+    # No Re-ID mode: ByteTrack + Profile without Re-ID
+    # This uses the standard model but disables Re-ID by setting threshold very high
+    if no_reid:
+        user_model_path = "yolo_osnet_4_with_filtering_updated (1).py"
+
+        if not os.path.exists(user_model_path):
+            raise FileNotFoundError(f"User model not found: {user_model_path}")
+
+        print(f"\n{'='*80}")
+        print(f"Running NO RE-ID mode (ByteTrack + Profile)")
+        print(f"  Model: {model_type.upper()}")
+        print(f"  Tracker: {tracker}")
+        print(f"  Output: {output_folder}")
+        print(f"{'='*80}\n")
+
+        # Import the main function
+        user_module = load_user_model_module(user_model_path)
+
+        # Configure the model with Re-ID disabled
+        config = {
+            "video_path": video_path,
+            "output_folder": output_folder,
+            "json_save_mode": "unified",
+            "create_comparison_videos": False,
+
+            # Model configuration
+            "model_type": model_type,
+            "model_path": model_path,
+
+            # TorchReID - disabled by setting threshold to 2.0 (impossible to match)
+            "torchreid_model_path": "osnet_x1_0_market_256x128_amsgrad_ep150_stp60_lr0.0015_b64_fb10_softmax_labelsmooth_flip.pth",
+
+            # Depth estimation (disabled for speed)
+            "use_depth": False,
+            "save_depth_visualization": False,
+            "save_foreground_masks": False,
+
+            # Frame skipping
+            "frame_skip_interval": frame_skip_interval,
+
+            # Profile tracking (enabled)
+            "profile_iterations": profile_iterations,
+            "window_size": 15,
+            "hist_threshold": 0.3,
+            "hist_weight_brightness": 0.5,
+            "hist_weight_saturation": 0.5,
+
+            # Post-greedy filtering
+            "apply_post_filter": apply_post_filter,
+            "post_hist_threshold": 0.25,
+            "post_window_size": 7,
+            "post_profile_iterations": 1,
+
+            # Re-ID DISABLED - threshold set to 2.0 (impossible to match)
+            "reid_threshold": 2.0,
+            "min_reid_samples": 2,
+            "frame_merge_threshold": 0.7,
+
+            # Greedy selection
+            "coverage_k": 2,
+            "use_instance_id": True,
+            "max_selected": None,
+            "min_new_combos": 1,
+            "score_thresh": 0.0,
+
+            # Object filtering
+            "show_available_classes": False,
+            "filter_mode": 3,
+            "filter_classes": [],
+
+            # Tracker configuration
+            "tracker": tracker,
+        }
+
+        # Run the model with timing
+        start_time = time.time()
+        try:
+            user_module.main(**config)
+        except Exception as e:
+            print(f"✗ Error running no-reid mode: {e}")
+            raise
+        end_time = time.time()
+
+        runtime_seconds = end_time - start_time
+
+        # Extract keyframe indices from JSON
+        json_path = os.path.join(output_folder, "keyframe_summary_unified.json")
+        keyframe_indices = extract_keyframes_from_json(json_path)
+
+        print(f"✓ Extracted {len(keyframe_indices)} keyframes (No Re-ID)")
         print(f"⏱️  Runtime: {runtime_seconds:.2f} seconds ({runtime_seconds/60:.2f} minutes)")
 
         return keyframe_indices, runtime_seconds
@@ -337,6 +475,8 @@ def run_multiple_configurations(video_path: str,
                 profile_only=config.get('profile_only', False),
                 profile_reid=config.get('profile_reid', False),
                 reid_only=config.get('reid_only', False),
+                no_reid=config.get('no_reid', False),
+                baseline=config.get('baseline', False),
                 profile_iterations=config.get('profile_iterations', 3),
                 apply_post_filter=config.get('apply_post_filter', True)
             )
