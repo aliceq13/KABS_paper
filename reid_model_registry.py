@@ -136,6 +136,28 @@ PERSON_REID_MODELS = {
         "paper": "https://arxiv.org/abs/2006.02631",
         "note": "⭐ Best Accuracy (Heavy)"
     },
+    "fastreid_agw_r101": {
+        "name": "FastReID AGW-R101-IBN",
+        "description": "Attention-Guided Weighting with ResNet101-IBN (FastReID)",
+        "num_classes": 1501,
+        "config_file": "fast-reid/configs/Market1501/AGW_R101-ibn.yml",
+        "url": "https://github.com/JDAI-CV/fast-reid/releases/download/v0.1.1/market_agw_R101-ibn.pth",
+        "local_path": "market_agw_R101-ibn.pth",
+        "framework": "fastreid",
+        "paper": "https://arxiv.org/abs/2006.02631",
+        "note": "⭐ SOTA Performance (95.5% Rank@1)"
+    },
+    "fastreid_mgn_r50": {
+        "name": "FastReID MGN-R50-IBN",
+        "description": "Multiple Granularity Network with ResNet50-IBN (FastReID)",
+        "num_classes": 1501,
+        "config_file": "fast-reid/configs/Market1501/mgn_R50-ibn.yml",
+        "url": "https://github.com/JDAI-CV/fast-reid/releases/download/v0.1.1/market_mgn_R50-ibn.pth",
+        "local_path": "market_mgn_R50-ibn.pth",
+        "framework": "fastreid",
+        "paper": "https://arxiv.org/abs/1804.01438",
+        "note": "⭐ Multi-Granularity Features"
+    },
 }
 
 
@@ -198,6 +220,17 @@ VEHICLE_REID_MODELS = {
         "framework": "fastreid",
         "paper": "https://arxiv.org/abs/2006.02631",
         "note": "⭐ SOTA for Vehicles (Large Scale)"
+    },
+    "fastreid_veri_agw_r50": {
+        "name": "FastReID VeRi AGW-R50",
+        "description": "Attention-Guided Weighting on VeRi-776 (FastReID)",
+        "num_classes": 776,
+        "config_file": "fast-reid/configs/VeRi/sbs_R50-ibn.yml",  # Using SBS config as AGW config may not exist
+        "url": "https://github.com/JDAI-CV/fast-reid/releases/download/v0.1.1/veri_sbs_R50-ibn.pth",
+        "local_path": "veri_sbs_R50-ibn.pth",
+        "framework": "fastreid",
+        "paper": "https://arxiv.org/abs/2006.02631",
+        "note": "⭐ Alternative SOTA for Vehicles"
     },
 }
 

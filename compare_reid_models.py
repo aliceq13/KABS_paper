@@ -18,19 +18,19 @@ from yolo_osnet_4_dual_reid import main as pipeline_main
 # ============================================================================
 
 PERSON_REID_MODELS_TO_TEST = [
-    {"key": "fastreid_sbs_r50", "name": "FastReID SBS-R50 (SOTA)"},
+    {"key": "fastreid_agw_r101", "name": "FastReID AGW-R101 (SOTA)"},
+    {"key": "fastreid_mgn_r50", "name": "FastReID MGN-R50 (Multi-Granularity)"},
+    {"key": "fastreid_sbs_r50", "name": "FastReID SBS-R50"},
     {"key": "osnet_market1501", "name": "OSNet Market-1501 (Best)"},
     {"key": "osnet_x1_0", "name": "OSNet x1.0 Pretrained"},
-    {"key": "osnet_x0_75", "name": "OSNet x0.75 (Faster)"},
-    {"key": "resnet50_fc512", "name": "ResNet50 Baseline"},
 ]
 
 VEHICLE_REID_MODELS_TO_TEST = [
     {"key": "fastreid_veri_sbs_r50", "name": "FastReID VeRi SBS-R50 (SOTA)"},
     {"key": "fastreid_vehicleid_bot_r50", "name": "FastReID VehicleID BoT-R50 (Large Scale)"},
+    {"key": "fastreid_veri_agw_r50", "name": "FastReID VeRi AGW-R50 (Alternative SOTA)"},
     {"key": "osnet_x1_0", "name": "OSNet x1.0 Pretrained"},
     {"key": "resnet50_fc512", "name": "ResNet50 Baseline"},
-    # {"key": "osnet_veri776", "name": "OSNet VeRi-776 (if available)"},  # Uncomment if you have this model
 ]
 
 
