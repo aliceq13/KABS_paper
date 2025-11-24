@@ -1,0 +1,374 @@
+"""
+Ablation Study for Keyframe Extraction
+
+4가지 구성으로 각 컴포넌트의 효과를 평가:
+1. Full Model: YOLO + ByteTrack + Profile Tracking + Re-ID (Complete)
+2. No Profile: YOLO + ByteTrack + Re-ID (Profile Tracking 제거)
+3. Profile Only: YOLO + Profile Tracking + Re-ID (ByteTrack 제거)
+4. No Tracking: YOLO + Re-ID (ByteTrack 제거, Profile Tracking 제거)
+"""
+
+import os
+import sys
+import time
+from datetime import datetime
+from typing import List, Dict
+
+# Import our modules
+import cv2
+from model_wrapper import run_multiple_configurations
+from evaluation_metrics import (
+    load_ground_truth_keyframes,
+    calculate_f1_with_tolerance,
+    save_results_to_csv,
+    print_evaluation_summary,
+    get_total_frame_count
+)
+
+
+def extract_uniform_keyframes(video_path: str, interval: int) -> List[int]:
+    """
+    Extract keyframes using uniform sampling.
+
+    Args:
+        video_path: Path to video file
+        interval: Sampling interval (extract every N frames)
+
+    Returns:
+        List of keyframe indices
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        raise ValueError(f"Cannot open video: {video_path}")
+
+    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    cap.release()
+
+    # Sample every 'interval' frames
+    keyframes = list(range(0, total_frames, interval))
+
+    return keyframes
+
+
+# Ablation Study Configurations
+# 각 컴포넌트의 개별 기여도를 측정할 수 있도록 구성
+ABLATION_CONFIGS = [
+    {
+        'name': 'Full_Model',
+        'description': 'YOLO+ByteTrack+Profile+Re-ID (Complete)',
+        'model_type': 'yolo',
+        'model_path': 'yolo11m.pt',
+        'tracker': 'bytetrack.yaml',
+        'profile_only': False,
+        'profile_reid': False,
+        'reid_only': False,
+        'no_reid': False,
+        'baseline': False,
+        'profile_iterations': 3,
+        'apply_post_filter': True,
+    },
+    {
+        'name': 'No_ReID',
+        'description': 'YOLO+ByteTrack+Profile (No Re-ID)',
+        'model_type': 'yolo',
+        'model_path': 'yolo11m.pt',
+        'tracker': 'bytetrack.yaml',
+        'profile_only': False,
+        'profile_reid': False,
+        'reid_only': False,
+        'no_reid': True,  # Re-ID 제거
+        'baseline': False,
+        'profile_iterations': 3,
+        'apply_post_filter': True,
+    },
+    {
+        'name': 'No_Profile',
+        'description': 'YOLO+ByteTrack+Re-ID (No Profile)',
+        'model_type': 'yolo',
+        'model_path': 'yolo11m.pt',
+        'tracker': 'bytetrack.yaml',
+        'profile_only': False,
+        'profile_reid': False,
+        'reid_only': False,
+        'no_reid': False,
+        'baseline': False,
+        'profile_iterations': 0,  # Profile tracking 제거
+        'apply_post_filter': False,
+    },
+    {
+        'name': 'No_ByteTrack',
+        'description': 'YOLO+Profile+Re-ID (No ByteTrack)',
+        'model_type': 'yolo',
+        'model_path': 'yolo11m.pt',
+        'profile_only': False,
+        'profile_reid': True,  # Profile+Re-ID 모드 (ByteTrack 없음)
+        'reid_only': False,
+        'no_reid': False,
+        'baseline': False,
+    },
+    {
+        'name': 'Profile_Only',
+        'description': 'YOLO+Profile Only (No ByteTrack, No Re-ID)',
+        'model_type': 'yolo',
+        'model_path': 'yolo11m.pt',
+        'profile_only': True,  # Profile만 사용
+        'profile_reid': False,
+        'reid_only': False,
+        'no_reid': False,
+        'baseline': False,
+    },
+    {
+        'name': 'Baseline',
+        'description': 'YOLO Only (No ByteTrack, No Profile, No Re-ID)',
+        'model_type': 'yolo',
+        'model_path': 'yolo11m.pt',
+        'profile_only': False,
+        'profile_reid': False,
+        'reid_only': False,
+        'no_reid': False,
+        'baseline': True,  # Baseline 모드
+    }
+]
+
+
+def run_ablation_study(video_path: str,
+                       ground_truth_folder: str,
+                       output_base_folder: str,
+                       run_baselines: bool = True,
+                       baseline_intervals: List[int] = [10, 15, 30, 60],
+                       tolerances: List[int] = [0, 15, 30]):
+    """
+    Run ablation study experiment.
+
+    Args:
+        video_path: Path to video file
+        ground_truth_folder: Base folder containing ground truth keyframes
+        output_base_folder: Base folder for all outputs
+        run_baselines: Whether to run baseline methods
+        baseline_intervals: List of sampling intervals for baselines
+        tolerances: List of temporal tolerances for evaluation
+    """
+    # Validate inputs
+    if not os.path.exists(video_path):
+        raise FileNotFoundError(f"Video not found: {video_path}")
+
+    # Extract video name
+    video_name = os.path.splitext(os.path.basename(video_path))[0]
+
+    # Create timestamp for unique folder
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    experiment_folder = os.path.join(
+        output_base_folder,
+        f"ablation_study_{video_name}_{timestamp}"
+    )
+    os.makedirs(experiment_folder, exist_ok=True)
+
+    print(f"\n{'='*100}")
+    print(f"ABLATION STUDY: {video_name}")
+    print(f"{'='*100}")
+    print(f"Video: {video_path}")
+    print(f"Output: {experiment_folder}")
+    print(f"Configurations: {len(ABLATION_CONFIGS)} (Full_Model, No_ReID, No_Profile, No_ByteTrack, Profile_Only, Baseline)")
+    print(f"{'='*100}\n")
+
+    # Get total frame count
+    total_frames = get_total_frame_count(video_path)
+
+    # Load ground truth
+    try:
+        gt_keyframes = load_ground_truth_keyframes(video_name, ground_truth_folder)
+        print(f"✓ Loaded ground truth: {len(gt_keyframes)} keyframes")
+    except FileNotFoundError as e:
+        print(f"⚠️ Warning: {e}")
+        print(f"   Continuing without ground truth evaluation")
+        gt_keyframes = None
+
+    # Store all results
+    all_results = []
+
+    # ====================================================================
+    # BASELINE METHODS
+    # ====================================================================
+    if run_baselines:
+        print(f"\n{'='*100}")
+        print("BASELINE METHODS")
+        print(f"{'='*100}\n")
+
+        for interval in baseline_intervals:
+            method_name = f"Uniform-{interval}"
+            print(f"Running {method_name}...")
+
+            # Measure runtime
+            start_time = time.time()
+            baseline_keyframes = extract_uniform_keyframes(video_path, interval)
+            runtime_seconds = time.time() - start_time
+
+            # Evaluate with different tolerances (only if GT available)
+            if gt_keyframes is not None:
+                for tol in tolerances:
+                    metrics = calculate_f1_with_tolerance(baseline_keyframes, gt_keyframes, tol)
+
+                    result = {
+                        'video': video_name,
+                        'method': method_name,
+                        'tolerance': tol,
+                        'num_keyframes': len(baseline_keyframes),
+                        'total_frames': total_frames,
+                        'runtime_seconds': runtime_seconds,
+                        **metrics
+                    }
+                    all_results.append(result)
+            else:
+                # No GT: save runtime and keyframe count only
+                result = {
+                    'video': video_name,
+                    'method': method_name,
+                    'tolerance': None,
+                    'num_keyframes': len(baseline_keyframes),
+                    'total_frames': total_frames,
+                    'runtime_seconds': runtime_seconds,
+                }
+                all_results.append(result)
+
+            print(f"  ✓ {method_name}: {len(baseline_keyframes)} keyframes (Runtime: {runtime_seconds:.2f}s)\n")
+
+    # ====================================================================
+    # ABLATION STUDY CONFIGURATIONS
+    # ====================================================================
+    print(f"\n{'='*100}")
+    print("ABLATION STUDY - MODEL CONFIGURATIONS")
+    print(f"{'='*100}\n")
+
+    # Create model results folder
+    model_results_folder = os.path.join(experiment_folder, "model_results", video_name)
+    os.makedirs(model_results_folder, exist_ok=True)
+
+    # Run all ablation configurations
+    model_keyframes = run_multiple_configurations(
+        video_path=video_path,
+        output_base_folder=model_results_folder,
+        configurations=ABLATION_CONFIGS
+    )
+
+    # Evaluate each configuration
+    for config in ABLATION_CONFIGS:
+        config_name = config['name']
+        result_tuple = model_keyframes.get(config_name, ([], 0.0))
+        keyframes, runtime_seconds = result_tuple
+
+        if not keyframes:
+            print(f"⚠️ No keyframes from {config_name}, skipping")
+            continue
+
+        print(f"\n{'Evaluating' if gt_keyframes else 'Processing'} {config_name}...")
+        print(f"  Description: {config['description']}")
+        print(f"  Keyframes: {len(keyframes)}")
+        print(f"  Runtime: {runtime_seconds:.2f}s ({runtime_seconds/60:.2f}m)")
+
+        # Evaluate with different tolerances (only if GT available)
+        if gt_keyframes is not None:
+            for tol in tolerances:
+                metrics = calculate_f1_with_tolerance(keyframes, gt_keyframes, tol)
+
+                result = {
+                    'video': video_name,
+                    'method': config_name,
+                    'tolerance': tol,
+                    'num_keyframes': len(keyframes),
+                    'total_frames': total_frames,
+                    'runtime_seconds': runtime_seconds,
+                    **metrics
+                }
+                all_results.append(result)
+        else:
+            # No GT: save runtime and keyframe count only
+            result = {
+                'video': video_name,
+                'method': config_name,
+                'tolerance': None,
+                'num_keyframes': len(keyframes),
+                'total_frames': total_frames,
+                'runtime_seconds': runtime_seconds,
+            }
+            all_results.append(result)
+
+    # ====================================================================
+    # SAVE RESULTS
+    # ====================================================================
+    print(f"\n{'='*100}")
+    print("SAVING RESULTS")
+    print(f"{'='*100}\n")
+
+    # Save evaluation results to CSV
+    evaluation_folder = os.path.join(experiment_folder, "evaluation")
+    os.makedirs(evaluation_folder, exist_ok=True)
+
+    results_csv = os.path.join(evaluation_folder, "detailed_results.csv")
+    save_results_to_csv(all_results, results_csv)
+
+    # Print summary
+    if all_results:
+        print_evaluation_summary(all_results)
+
+    print(f"\n{'='*100}")
+    print("ABLATION STUDY COMPLETE")
+    print(f"{'='*100}")
+    print(f"Results location: {experiment_folder}")
+    print(f"  • Model outputs: {model_results_folder}")
+    print(f"  • Evaluation: {evaluation_folder}")
+    print(f"{'='*100}\n")
+
+    return experiment_folder
+
+
+def main():
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Run Ablation Study for Keyframe Extraction",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Ablation Study Configurations:
+  1. Full_Model    : YOLO + ByteTrack + Profile + Re-ID (Complete)
+  2. No_Profile    : YOLO + ByteTrack + Re-ID (No Profile Tracking)
+  3. Profile_Only  : YOLO + Profile + Re-ID (No ByteTrack)
+  4. No_Tracking   : YOLO + Re-ID (No ByteTrack, No Profile)
+
+Example:
+  python run_ablation_study.py --video my_video.mp4
+  python run_ablation_study.py --video my_video.mp4 --no-baselines
+        """
+    )
+
+    parser.add_argument('--video', type=str, required=True,
+                       help='Path to video file')
+    parser.add_argument('--gt-folder', type=str,
+                       default='Keyframe-extraction/Dataset/Keyframe',
+                       help='Ground truth folder (default: Keyframe-extraction/Dataset/Keyframe)')
+    parser.add_argument('--output', type=str,
+                       default='experiment_results',
+                       help='Output base folder (default: experiment_results)')
+    parser.add_argument('--no-baselines', action='store_true',
+                       help='Skip baseline methods')
+    parser.add_argument('--baseline-intervals', type=int, nargs='+',
+                       default=[10, 15, 30, 60],
+                       help='Baseline sampling intervals (default: 10 15 30 60)')
+    parser.add_argument('--tolerances', type=int, nargs='+',
+                       default=[0, 15, 30],
+                       help='Temporal tolerances for evaluation (default: 0 15 30)')
+
+    args = parser.parse_args()
+
+    # Run ablation study
+    run_ablation_study(
+        video_path=args.video,
+        ground_truth_folder=args.gt_folder,
+        output_base_folder=args.output,
+        run_baselines=not args.no_baselines,
+        baseline_intervals=args.baseline_intervals,
+        tolerances=args.tolerances
+    )
+
+
+if __name__ == "__main__":
+    main()
