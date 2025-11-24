@@ -1,0 +1,28 @@
+version: '3.8'
+
+services:
+  kabs_enhance:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: kabs_enhance:latest
+    container_name: kabs_enhance_container
+    runtime: nvidia
+    environment:
+      - NVIDIA_VISIBLE_DEVICES=all
+      - CUDA_VISIBLE_DEVICES=0
+    volumes:
+      - .:/workspace
+      - ./models:/workspace/models
+      - ./data:/workspace/data
+      - ./output:/workspace/output
+    shm_size: '8gb'
+    stdin_open: true
+    tty: true
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu]
