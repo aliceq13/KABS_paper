@@ -45,6 +45,11 @@ RUN pip install --no-cache-dir \
     tabulate \
     gdown
 
+# Fix NumPy and Transformers version compatibility with PyTorch 2.1
+# Must be done AFTER initial install to override base image versions
+RUN pip uninstall -y numpy transformers && \
+    pip install --no-cache-dir "numpy<2.0" "transformers<4.38.0"
+
 # Create directories for models and data
 RUN mkdir -p /workspace/models /workspace/data /workspace/output
 
